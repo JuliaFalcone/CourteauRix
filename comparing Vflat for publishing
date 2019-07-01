@@ -1,0 +1,297 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<script>\n",
+       "code_show=true; \n",
+       "function code_toggle() {\n",
+       " if (code_show){\n",
+       " $('div.input').hide();\n",
+       " } else {\n",
+       " $('div.input').show();\n",
+       " }\n",
+       " code_show = !code_show\n",
+       "} \n",
+       "$( document ).ready(code_toggle);\n",
+       "</script>\n",
+       "<form action=\"javascript:code_toggle()\"><input type=\"submit\" value=\"Click here to toggle on/off the raw code.\"></form>"
+      ],
+      "text/plain": [
+       "<IPython.core.display.HTML object>"
+      ]
+     },
+     "execution_count": 19,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "from IPython.display import HTML, display\n",
+    "HTML('''<script>\n",
+    "code_show=true; \n",
+    "function code_toggle() {\n",
+    " if (code_show){\n",
+    " $('div.input').hide();\n",
+    " } else {\n",
+    " $('div.input').show();\n",
+    " }\n",
+    " code_show = !code_show\n",
+    "} \n",
+    "$( document ).ready(code_toggle);\n",
+    "</script>\n",
+    "<form action=\"javascript:code_toggle()\"><input type=\"submit\" value=\"Click here to toggle on/off the raw code.\"></form>''')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "import scipy.interpolate as interp\n",
+    "import matplotlib.pyplot as plt\n",
+    "import math\n",
+    "from scipy import stats\n",
+    "import glob\n",
+    "from scipy.interpolate import interp1d\n",
+    "import mplcursors\n",
+    "%matplotlib inline\n",
+    "from matplotlib.widgets import Slider, Button, RadioButtons\n",
+    "from ipywidgets import interact, interactive, fixed, interact_manual\n",
+    "import ipywidgets as widgets\n",
+    "\n",
+    "import IPython\n",
+    "\n",
+    "from Vflat_importfunctions import changing_ML2,  Vflat_recurse\n",
+    "\n",
+    "import warnings\n",
+    "warnings.filterwarnings(\"ignore\")\n",
+    "plt.close()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "Lbulge  = np.loadtxt('sparc global measurements.csv', delimiter=',', unpack = True, skiprows = 2, usecols = (20)) \n",
+    "Vflat_allgals = np.empty(175)\n",
+    "sparc_new = {} #disctionary to hold all values\n",
+    "n=0 #used for indexing purposes\n",
+    "name = np.empty(175, dtype = object) #stores name of galaxy\n",
+    "haghi_MLstellar, chan_MLdisk, chan_MLbulge = np.loadtxt('calculating Vflat from other papers.csv', delimiter=',', unpack = True, skiprows = 2, usecols = (2,5,6)) \n",
+    "paper_names = np.loadtxt('calculating Vflat from other papers.csv', delimiter=',', skiprows = 2, usecols = (0), dtype = 'object', unpack = True)\n",
+    "sparc_vflat = np.empty(len(haghi_MLstellar))\n",
+    "haghi_vflat = np.empty(len(haghi_MLstellar))\n",
+    "chan_vflat = np.empty(len(haghi_MLstellar))\n",
+    "\n",
+    "for filename in sorted(glob.glob('dat files for all galaxies/*_rotmod.dat')):\n",
+    "    radius, vobs, errV, vgas, vdisk, vbul, SBdisk, SBbul = np.loadtxt(filename, delimiter='\t', skiprows = 3, unpack = True)\n",
+    "   \n",
+    "    filename = filename.replace('_rotmod.dat', '')\n",
+    "    filename = filename.replace('dat files for all galaxies/', '')\n",
+    "    \n",
+    "    name[n] = str(filename)\n",
+    "    sparc_new[str(filename) + '_rad'] = radius\n",
+    "    sparc_new[str(filename) + '_Vobs'] = vobs\n",
+    "    sparc_new[str(filename) + '_Vgas'] = vgas\n",
+    "    sparc_new[str(filename) + '_Vdisk'] = vdisk\n",
+    "    sparc_new[str(filename) + '_Vbul'] = vbul\n",
+    "    sparc_new[str(filename) + '_index'] = n\n",
+    "    vbary = np.sqrt(0.5*vdisk**2 + 0.7*vbul**2 + vgas**2 )\n",
+    "    sparc_new[str(filename) + '_VDM'] = np.sqrt(vobs**2 - vbary**2)\n",
+    "    \n",
+    "    n = n+1\n",
+    "    \n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def changing_ML_each(ML_disknew, ML_bulgenew, gal_name):\n",
+    "    \n",
+    "    vbaryorig = np.sqrt(0.5 * sparc_new[gal_name+\"_Vdisk\"]**2 + 0.7 * sparc_new[gal_name+\"_Vbul\"]**2 + sparc_new[gal_name+\"_Vgas\"]**2)\n",
+    "    vobsorig = np.sqrt(vbaryorig**2 + sparc_new[gal_name+\"_VDM\"]**2)\n",
+    "    \n",
+    "    vbarynew = np.sqrt(ML_disknew * sparc_new[gal_name+\"_Vdisk\"]**2 + ML_bulgenew * sparc_new[gal_name+\"_Vbul\"]**2 + sparc_new[gal_name+\"_Vgas\"]**2)\n",
+    "    vobsnew = np.sqrt(vbarynew**2 + sparc_new[gal_name+\"_VDM\"]**2)\n",
+    "    \n",
+    "    \n",
+    "    Vflat_orig = 0.5 * (vobsnew[-1] + vobsnew[-2])\n",
+    "    Vbar_sum = vobsnew[-1] + vobsnew[-2]\n",
+    "    \n",
+    "    if (np.abs(vobsnew[-3] - Vflat_orig)/Vflat_orig <= 0.05):\n",
+    "        return Vflat_recurse(3, Vbar_sum, vobsnew)\n",
+    "    else:\n",
+    "        return 0"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def changing_ML_stellar(ML_stellar, gal_name, disk_multiplier):\n",
+    "    \n",
+    "    ML_disknew = ML_stellar\n",
+    "    ML_bulgenew = ML_stellar * disk_multiplier\n",
+    "    \n",
+    "    vbaryorig = np.sqrt(0.5 * sparc_new[gal_name+\"_Vdisk\"]**2 + 0.7 * sparc_new[gal_name+\"_Vbul\"]**2 + sparc_new[gal_name+\"_Vgas\"]**2)\n",
+    "    vobsorig = np.sqrt(vbaryorig**2 + sparc_new[gal_name+\"_VDM\"]**2)\n",
+    "    \n",
+    "    vbarynew = np.sqrt(ML_disknew * sparc_new[gal_name+\"_Vdisk\"]**2 + ML_bulgenew * sparc_new[gal_name+\"_Vbul\"]**2 + sparc_new[gal_name+\"_Vgas\"]**2)\n",
+    "    vobsnew = np.sqrt(vbarynew**2 + sparc_new[gal_name+\"_VDM\"]**2)\n",
+    "\n",
+    "    Vflat_orig = 0.5 * (vobsnew[-1] + vobsnew[-2])\n",
+    "    Vbar_sum = vobsnew[-1] + vobsnew[-2]\n",
+    "    \n",
+    "    if (np.abs(vobsnew[-3] - Vflat_orig)/Vflat_orig <= 0.05):\n",
+    "        return Vflat_recurse(3, Vbar_sum, vobsnew)\n",
+    "    else:\n",
+    "        return 0"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "for x in range(len(name)):\n",
+    "    Vflat_allgals[x] = changing_ML_each(.5, .7, name[x])\n",
+    "\n",
+    "def rmse(predictions, targets):\n",
+    "        return np.sqrt(((predictions - targets) ** 2).mean())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## What's going on in the two graphs below?\n",
+    "\n",
+    "I wanted to compare the Vflat that I get with SPARC to those from two other papers: [Ho Chan (2018)](https://iopscience.iop.org/article/10.3847/1538-4357/aab3e6/meta) and [Haghi(2017)](https://academic.oup.com/mnras/article/477/3/4187/4919623). These papers don't explicitly give Vflat, but they provide means of calculating it:\n",
+    "- Ho Chan gives $\\mathrm{\\Upsilon_{disk}}$ and $\\mathrm{\\Upsilon_{bulge}}$ for a number of graphs. I can calculate a rotation curve using those, and solve for Vflat.\n",
+    "- Haghi provides a $\\mathrm{\\Upsilon_{stellar}}$ for each galaxy, and it is assumed from Lelli (2016) that I can say $\\mathrm{\\Upsilon_{stellar}=\\Upsilon_{disk}}$ and then I can get $\\mathrm{\\Upsilon_{bulge}}$ by doing $\\mathrm{\\Upsilon_{bulge}=\\Upsilon_{disk}}$ * `disk_mult` (a variable on the slider below). Previously, it was assumed that `mult_factor` = 1.4. Once again, after finding $\\mathrm{\\Upsilon_{disk}}$ and $\\mathrm{\\Upsilon_{bulge}}$, I make a rotation curve and find Vflat\n",
+    "\n",
+    "So, now I have Vflat for those two papers, but I also want to see whether it's possible to assign a constant $\\mathrm{\\Upsilon_{disk}}$ and $\\mathrm{\\Upsilon_{bulge}}$ for all galaxies as Lelli thinks, as opposed to a different quantity for each. To do this, I have `ML_disk` on the slider below to set the $\\mathrm{\\Upsilon_{disk}}$ that all galaxies supposedly possess. Then, I calculate $\\mathrm{\\Upsilon_{bulge}}$ by multiplying `ML_disk` * `disk_mult` (the latter term is explained above) and once again go through the process of making a rotation curve and finding a Vflat. These values are labeled as \"my Vflat\".\n",
+    "\n",
+    "## How do I calculate new Vobs curves?\n",
+    "\n",
+    "Since Vflat is derived from the observed rotation curve, I needed it to change every time I altered the M/L ratios. To do this, I first had to take a step back and calculate the proposed velocity due to dark matter. Since I already had observed and baryonic rotation curves of the galaxies under the origincal conditions of $\\mathrm{\\Upsilon_{disk} = 0.5, \\Upsilon_{bulge}=0.7}$, I used the equation $\\mathrm{V_{obs}^2 = V_{bary}^2 + V_{DM}^2}$ to create a dark matter rotation curve. I decided that values in $V_{DM}$ wouldn't change with varying M/L ratios, which allows me to only have to solve for $V_{DM}$ each time I did so. Then, whenver I wanted to calculate a new rotation curve for different M/L, I would use the same equation where\n",
+    "$$ \\mathrm{V_{bary} = \\sqrt{\\Upsilon_{disk,new}|V_{disk}|^2 + \\Upsilon_{bulge,new}|V_{bulge}|^2 + |V_{gas}|^2}}$$\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "application/vnd.jupyter.widget-view+json": {
+       "model_id": "1ed20f122e61484d8936a8b8a1dfd4e9",
+       "version_major": 2,
+       "version_minor": 0
+      },
+      "text/plain": [
+       "interactive(children=(FloatSlider(value=0.5, continuous_update=False, description='ML_disk', max=3.0, min=0.01…"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/plain": [
+       "<function __main__.changing_sparc_vflat(ML_disk, disk_mult)>"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "def changing_sparc_vflat(ML_disk, disk_mult):\n",
+    "    for x in range(len(haghi_MLstellar)):\n",
+    "        sparc_vflat[x] = changing_ML_each(ML_disk, ML_disk * disk_mult, paper_names[x])\n",
+    "        haghi_vflat[x] = changing_ML_stellar(haghi_MLstellar[x], paper_names[x], disk_mult)\n",
+    "        chan_vflat[x]  = changing_ML_each(chan_MLdisk[x], chan_MLbulge[x], paper_names[x])    \n",
+    "    \n",
+    "    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))\n",
+    "    nonzero = np.where((sparc_vflat > 0) & (chan_vflat > 0)  & (haghi_vflat > 0))\n",
+    "    \n",
+    "    ax1.scatter(np.log10(sparc_vflat[nonzero]), sparc_vflat[nonzero]/chan_vflat[nonzero])\n",
+    "    ax1.set_xlabel('log(my Vflat) [km/s]')\n",
+    "    ax1.set_ylabel(r\"$\\mathrm{\\frac{my \\ Vflat}{Ho\\ Chan's \\ Vflat}}$\", rotation = 90, fontsize = 15, horizontalalignment = 'right')\n",
+    "    ax1.set_title('comparing to Ho Chan')\n",
+    "    ax1.set_ylim(.7,1.8)\n",
+    "    \n",
+    "    coeff,cov=np.polyfit(np.log10(sparc_vflat[nonzero]), sparc_vflat[nonzero]/chan_vflat[nonzero],1,cov=True)\n",
+    "    coeff_err = np.sqrt(np.diag(cov))\n",
+    "    xfit=np.linspace(min(np.log10(sparc_vflat[nonzero])),max(np.log10(sparc_vflat[nonzero])),1000)\n",
+    "    polynomial=np.poly1d(coeff)\n",
+    "    ax1.plot(xfit,polynomial(xfit),color='green')\n",
+    "    rms = rmse(sparc_vflat[nonzero]/chan_vflat[nonzero], coeff[0] * np.log10(sparc_vflat[nonzero]) + coeff[1])\n",
+    "    print('    Left graph:  slope = {:.6f}. scatter = {:.3f}'.format(coeff[0],rms))    \n",
+    "    \n",
+    "    ax2.scatter(np.log10(sparc_vflat[nonzero]), sparc_vflat[nonzero]/haghi_vflat[nonzero])\n",
+    "    ax2.set_xlabel('log(my Vflat) [km/s]')\n",
+    "    ax2.set_ylabel(r\"$\\mathrm{\\frac{my \\ Vflat}{Haghi's \\ \\ Vflat}}$\", rotation = 90, fontsize = 15, horizontalalignment = 'center')\n",
+    "    ax2.yaxis.set_label_coords(-.07, 0.5)\n",
+    "    ax2.set_title('comparing to Haghi')\n",
+    "    ax2.set_ylim(.7,2)\n",
+    "     \n",
+    "    coeff,cov=np.polyfit(np.log10(sparc_vflat[nonzero]), sparc_vflat[nonzero]/haghi_vflat[nonzero],1,cov=True)\n",
+    "    coeff_err = np.sqrt(np.diag(cov))\n",
+    "    xfit=np.linspace(min(np.log10(sparc_vflat[nonzero])),max(np.log10(sparc_vflat[nonzero])),1000)\n",
+    "    polynomial=np.poly1d(coeff)\n",
+    "    ax2.plot(xfit,polynomial(xfit),color='green')\n",
+    "    rms = rmse(sparc_vflat[nonzero]/haghi_vflat[nonzero], coeff[0] * np.log10(sparc_vflat[nonzero]) + coeff[1])\n",
+    "    print('    Right graph: slope = {:.6f}. scatter = {:.3f}'.format(coeff[0],rms))\n",
+    "    \n",
+    "interact(changing_sparc_vflat, ML_disk=widgets.FloatSlider(value=0.5, min=0.01, max=3,step=0.01, continuous_update=False),\n",
+    "        disk_mult=widgets.FloatSlider(value=1.4, min=0.01, max=5,step=0.01, continuous_update=False)) \n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
